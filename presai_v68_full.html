@@ -1604,11 +1604,18 @@ function dcCalc(itemsArr){
 }
 
 function reNum(){
-  var cn=0,itn=0,cc=0;
+  var cn=0,sn=0,itn=0;
   items=items.map(function(it){
-    if(it.t==='ch'){cn++;itn=0;cc=cn;return Object.assign({},it,{num:cn+'.-'});}
-    if(isAux(it.unit)){return Object.assign({},it,{num:cc+'.-'});} /* aux NO resetea sub-contador */
-    itn++;return Object.assign({},it,{num:cc+'.'+itn});
+    if(it.t==='ch'){
+      cn++; sn=0; itn=0;
+      return Object.assign({},it,{num:cn});
+    }
+    if(isAux(it.unit)){
+      sn++; itn=0;
+      return Object.assign({},it,{num:cn+'.'+sn});
+    }
+    itn++;
+    return Object.assign({},it,{num:cn+'.'+sn+'.'+itn});
   });
 }
 function ctotals(){
@@ -4194,8 +4201,12 @@ function exportXlsx(projId){
   const pitems=p.items||[];const pGGSubs=p.ggSubgroups||[];const pApuData=p.apuData||{};const pTofData=p.tofData||{};
   const pGGpct=parseFloat(p.pGG)||0;const pUtilpct=parseFloat(p.pUtil)||0;const pImppct=parseFloat(p.pImp)||0;const pIVApct=parseFloat(p.pIVA)||19;const ggFijo=p.ggFijo||false;
   const presData=[['Ítem','Descripción','Unid','Cantidad','P. Unit.','Total']];
-  let cn=0,itn=0,cc=0;
-  const numbered=pitems.map(it=>{if(it.t==='ch'){cn++;itn=0;cc=cn;return Object.assign({},it,{num:cn+'.-'});}itn++;return Object.assign({},it,{num:cc+'.'+itn});});
+  let cn=0,sn=0,itn=0;
+  const numbered=pitems.map(it=>{
+    if(it.t==='ch'){ cn++; sn=0; itn=0; return Object.assign({},it,{num:cn}); }
+    if(isAux(it.unit)){ sn++; itn=0; return Object.assign({},it,{num:cn+'.'+sn}); }
+    itn++; return Object.assign({},it,{num:cn+'.'+sn+'.'+itn});
+  });
   numbered.forEach(it=>{if(it.t==='ch')presData.push([it.num,it.name,'','','',0]);else presData.push([it.num,it.name,it.unit||'',parseFloat(it.qty)||0,parseFloat(it.price)||0,{f:`D${presData.length+1}*E${presData.length+1}`}]);});
   const dc=dcCalc(pitems);
   const ggV=ggFijo?dc*(pGGpct/100):pGGSubs.reduce((a,sg)=>a+sg.items.reduce((b,it)=>b+(parseFloat(it.qty)||0)*(parseFloat(it.tiempoUso)||0)*(parseFloat(it.price)||0),0),0);
