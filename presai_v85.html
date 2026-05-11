@@ -2088,8 +2088,8 @@ function initEvents(){
     
     /* ── Detección de partida auxiliar: unit="aux" o "_aux_" convierte item en s/cap. ── */
     if(f==='unit'&&v.toLowerCase().replace(/_/g,'').trim()==='aux'){
-      /* Bloqueo: no permitir si la partida ya tiene nombre o valores (partida existente) */
-      if(it.name.trim()!==''||N(it.qty)!==0||N(it.price)!==0){
+      /* Bloqueo: no permitir si la partida ya tiene nombre Y (cantidad o precio) (partida existente con valores) */
+      if(it.name.trim()!=='' && (N(it.qty)!==0 || N(it.price)!==0)){
         /* Alerta silenciosa: restaurar valor anterior y salir */
         inp.value=it.unit;
         return;
@@ -2334,14 +2334,28 @@ function addIt(){
   
   var selectedRow = document.querySelector('.row-it.selected') || document.querySelector('.row-it:focus-within');
   
-  var insertIdx = items.length - 1; // Por defecto al final si no hay selección
-  if(selectedRow){
-    var selectedId = selectedRow.dataset.id;
-    insertIdx = items.findIndex(function(x){return x.id === selectedId;});
+  if(!selectedRow){
+    /* Alerta silenciosa o aviso si no hay selección */
+    return;
+  }
+
+  var selectedId = selectedRow.dataset.id;
+  var selectedIdx = items.findIndex(function(x){return x.id === selectedId;});
+  if(selectedIdx < 0) return;
+
+  var selectedItem = items[selectedIdx];
+  
+  /* Validar si la posición es permitida:
+     1. Es un capítulo (t==='ch') -> se inserta al inicio del capítulo.
+     2. Es una partida o subpartida (t==='it') -> se inserta a continuación.
+  */
+  if(selectedItem.t !== 'ch' && selectedItem.t !== 'it'){
+    return; /* No permitir en otros tipos de fila si existieran */
   }
 
   pushUndoMain();
   
+  /* Insertar la nueva partida justo después de la fila seleccionada */
   var newItem = {
     id: gid(), 
     t: 'it', 
@@ -2355,7 +2369,7 @@ function addIt(){
     isAux: false
   };
 
-  items.splice(insertIdx + 1, 0, newItem);
+  items.splice(selectedIdx + 1, 0, newItem);
   rb();markUnsaved();
   
   setTimeout(function(){
@@ -2947,6 +2961,7 @@ function genPrintHtml(includeQrAndSignatures){
 
   var companyBlock='<div style="display:flex;flex-direction:column;gap:2px;justify-content:flex-end;padding-bottom:2px">'
     +'<div style="font-size:14px;font-weight:700;color:'+color+'">'+esc(CFG.companyName)+'</div>'
+    +(CFG.companyRut?'<div style="font-size:10px;color:#64748b">RUT: '+esc(CFG.companyRut)+'</div>':'')
     +'<div style="font-size:10px;color:#64748b">'+esc(CFG.companyTagline)+'</div>'
     +(CFG.printBudgetNum?'<div style="font-size:9px;color:#94a3b8;font-family:monospace;margin-top:2px;font-weight:700">Pres.# '+budgetNumStr+'</div>':'')
     +'</div>';
@@ -3303,7 +3318,7 @@ function genPrintHtml(includeQrAndSignatures){
     +'.hdr-repeat-thead{display:table-header-group!important}'
     +'.avoid-break{page-break-inside:avoid!important;break-inside:avoid!important}'
     +'}'
-    +'@page{size:'+pageSize+';margin:'+margins+';@bottom-left{content:"'+addrLine+'";font-size:7pt;color:#64748b;font-family:sans-serif}@bottom-center{content:"PresAI Software presupuesto de obras";font-size:6pt;color:#cbd5e1;font-family:sans-serif}@bottom-right{content:"Pág. " counter(page) " de " counter(pages);font-size:8pt;color:#64748b;font-weight:600;font-family:sans-serif}}'
+    +'@page{size:'+pageSize+';margin:'+margins+';@bottom-left{content:"'+addrLine+'";font-size:7pt;color:#64748b;font-family:sans-serif}@bottom-center{content:"";font-size:6pt;color:#cbd5e1;font-family:sans-serif}@bottom-right{content:"Pág. " counter(page) " de " counter(pages);font-size:8pt;color:#64748b;font-weight:600;font-family:sans-serif}}'
     +'</style></head><body>';
 
   if(CFG.printCover){
