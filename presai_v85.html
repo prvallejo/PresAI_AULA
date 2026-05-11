@@ -2329,35 +2329,20 @@ function saveChapterNote(id,clear){
   rb();markUnsaved();closeMod();
 }
 function addIt(){
-  /* +Nueva Partida: solo permite agregar una partida al inicio de un capítulo 
-     o a continuación de una partida o subpartida. */
+  /* +Nueva Partida: permite agregar una partida bajo una subpartida de un aux, 
+     bajo una partida existente o como primera partida de un capítulo. */
   
-  /* Buscar la fila actualmente seleccionada o enfocada */
   var selectedRow = document.querySelector('.row-it.selected') || document.querySelector('.row-it:focus-within');
   
-  if(!selectedRow){
-    /* Alerta silenciosa o aviso si no hay selección */
-    return;
-  }
-
-  var selectedId = selectedRow.dataset.id;
-  var selectedIdx = items.findIndex(function(x){return x.id === selectedId;});
-  if(selectedIdx < 0) return;
-
-  var selectedItem = items[selectedIdx];
-  
-  /* Validar si la posición es permitida:
-     1. Es un capítulo (t==='ch') -> se inserta al inicio del capítulo.
-     2. Es una partida o subpartida (t==='it') -> se inserta a continuación.
-  */
-  if(selectedItem.t !== 'ch' && selectedItem.t !== 'it'){
-    return; /* No permitir en otros tipos de fila si existieran */
+  var insertIdx = items.length - 1; // Por defecto al final si no hay selección
+  if(selectedRow){
+    var selectedId = selectedRow.dataset.id;
+    insertIdx = items.findIndex(function(x){return x.id === selectedId;});
   }
 
   pushUndoMain();
   
-  /* Insertar la nueva partida justo después de la fila seleccionada */
-  items.splice(selectedIdx + 1, 0, {
+  var newItem = {
     id: gid(), 
     t: 'it', 
     num: '', 
@@ -2368,15 +2353,18 @@ function addIt(){
     isApu: false, 
     isCub: false, 
     isAux: false
-  });
+  };
+
+  items.splice(insertIdx + 1, 0, newItem);
   rb();markUnsaved();
   
   setTimeout(function(){
     var rows=document.querySelectorAll('.row-it');
     if(rows.length){
-      /* Enfocar la nueva partida recién creada */
-      var newRow = rows[Math.min(insertIdx+1, rows.length-1)];
-      if(newRow){
+      var newRowIdx = -1;
+      rows.forEach((r, i) => { if(r.dataset.id === newItem.id) newRowIdx = i; });
+      if(newRowIdx !== -1){
+        var newRow = rows[newRowIdx];
         newRow.scrollIntoView({behavior:'smooth', block:'nearest'});
         var nameInput = newRow.querySelector('[data-field="name"]');
         if(nameInput){
@@ -2384,7 +2372,7 @@ function addIt(){
         }
       }
     }
-  }, 30);
+  }, 50);
 }
 function dupIt(id){
   var idx=items.findIndex(function(x){return x.id===id;});
@@ -3401,7 +3389,7 @@ function genPrintHtml(includeQrAndSignatures){
           +'<td style="font-size:'+fsp(9)+';padding:5px 8px;border-top:1px solid #f5f5f5;vertical-align:top"></td>'
           +'<td style="font-size:'+fsp(9)+';padding:5px 8px;border-top:1px solid #f5f5f5;vertical-align:top"></td>'
           +'<td style="font-size:'+fsp(9)+';padding:5px 8px;border-top:1px solid #f5f5f5;vertical-align:top"></td>'
-          +'<td style="font-size:'+fsp(9)+';text-align:right;font-family:monospace;font-weight:900;padding:5px 8px;border-top:1px solid #f5f5f5;vertical-align:top;padding-right:8px"><strong>'+fmtB(auxTotal)+'</strong></td>'
+          +'<td style="font-size:'+fsp(9)+';text-align:right;font-family:monospace;font-weight:900;padding:5px 8px;border-top:1px solid #f5f5f5;vertical-align:top;padding-right:8px"><strong>'+s+' '+fmtB(auxTotal)+'</strong></td>'
           +'</tr>';
         return;
       }
@@ -4129,6 +4117,12 @@ function _doOpenProjects(){
   /* Al salir del proyecto activo, el historial de deshacer ya no es válido */
   clearAllUndo();
   let idx=getIdx();
+  /* Ordenar: últimos abiertos primero (openedAt), si no tienen openedAt usar savedAt */
+  idx.sort((a, b) => {
+    let da = a.openedAt || a.savedAt || '';
+    let db = b.openedAt || b.savedAt || '';
+    return db.localeCompare(da);
+  });
   document.getElementById('mc').innerHTML='';
   var _ov=document.getElementById('ov');
   _ov.style.display='block';
@@ -4188,6 +4182,13 @@ function loadP(id){
 }
 function _doLoadP(id){
   let p=lsL('od_proj_'+id);if(!p)return;
+  /* Registrar fecha de apertura para ordenar */
+  p.openedAt = new Date().toISOString();
+  lsS('od_proj_'+id, p);
+  /* Actualizar índice */
+  let idx=getIdx(),e=idx.find(x=>x.id===id);
+  if(e){ e.openedAt = p.openedAt; saveIdx(idx); }
+  
   currentProjectId=id;items=p.items;
   /* Normalizar items para asegurar que tengan todos los campos (migración de versiones) */
   items=items.map(it=>{
